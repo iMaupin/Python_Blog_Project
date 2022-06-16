@@ -1,76 +1,18 @@
-import os
-
-from flask import Flask, render_template, redirect, url_for, flash, request, abort
-from flask_bootstrap import Bootstrap
-from flask_ckeditor import CKEditor
-from datetime import date
-from werkzeug.security import generate_password_hash, check_password_hash
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import relationship
-from flask_login import UserMixin, login_user, LoginManager, login_required, current_user, logout_user
-from forms import CreatePostForm, RegistrationForm, LoginForm, CommentForm
+from flask_blog import app, db
 from functools import wraps
-from flask_gravatar import Gravatar
+from datetime import date
+from flask import render_template, redirect, url_for, flash, request, abort
+from flask_blog.forms import CreatePostForm, RegistrationForm, LoginForm, CommentForm
+from flask_login import LoginManager, login_user, login_required, current_user, logout_user
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_blog.models import BlogPost, User, Comment
 
-
-app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
-ckeditor = CKEditor(app)
-Bootstrap(app)
-gravatar = Gravatar(app, rating="g", size=300)
-
-##CONNECT TO DB
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', "sqlite:///blog.db")
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
-
-##CONNECT TO LOGIN_MANGAGER
 login_manager = LoginManager()
 login_manager.init_app(app)
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
-
-
-##CONFIGURE TABLES
-class User(db.Model, UserMixin):
-    __tablename__ = "users"
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(250), unique=True, nullable=False)
-    name = db.Column(db.String(250), nullable=False)
-    password = db.Column(db.String(250), nullable=False)
-    posts = relationship("BlogPost", back_populates="author")
-    comments = relationship("Comment", back_populates="comment_author")
-
-
-class BlogPost(db.Model):
-    __tablename__ = "blog_posts"
-    id = db.Column(db.Integer, primary_key=True)
-    author = relationship("User", back_populates="posts")
-    title = db.Column(db.String(250), unique=True, nullable=False)
-    subtitle = db.Column(db.String(250), nullable=False)
-    date = db.Column(db.String(250), nullable=False)
-    body = db.Column(db.Text, nullable=False)
-    img_url = db.Column(db.String(250), nullable=False)
-    author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    comments = relationship("Comment", back_populates='blog_post')
-
-
-class Comment(db.Model):
-    __tablename__ = "comments"
-    id = db.Column(db.Integer, primary_key=True)
-    text = db.Column(db.String(250), nullable=False)
-    author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    comment_author = relationship("User", back_populates="comments")
-    blog_post_id = db.Column(db.Integer, db.ForeignKey('blog_posts.id'))
-    blog_post = relationship("BlogPost", back_populates='comments')
-
-
-
-
-
-db.create_all()
+    return User.get(user_id)
 
 
 def admin_only(function):
@@ -152,7 +94,6 @@ def show_post(post_id):
     return render_template("post.html", post=requested_post, form=form, comments=requested_post.comments)
 
 
-
 @app.route("/about")
 def about():
     return render_template("about.html")
@@ -161,7 +102,6 @@ def about():
 @app.route("/contact")
 def contact():
     return render_template("contact.html")
-
 
 
 @app.route("/new-post", methods=["GET", "POST"])
@@ -226,7 +166,3 @@ def delete_comment(post_id, comment_id):
     db.session.delete(comment_to_delete)
     db.session.commit()
     return redirect(url_for("show_post", post_id=post_id))
-
-
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000)
